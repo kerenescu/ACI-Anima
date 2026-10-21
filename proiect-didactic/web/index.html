@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ro">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#123d35"><title>ACI Drawing Lab · De la desen la mișcare</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="ACI Drawing Lab"><span class="brand-mark">A<span>↗</span></span><span>Drawing Lab<small>LABORATOR DE ANALIZĂ A IMAGINII</small></span></a>
+    <p class="side-heading">DE LA DESEN LA MIȘCARE</p>
+    <nav id="steps" aria-label="Etapele proiectului"></nav>
+    <div class="side-bottom"><button id="aboutBtn" class="quiet">ⓘ Articol și implementare</button><span class="offline"><i></i> LOCAL · FĂRĂ INTERNET</span></div>
+  </aside>
+  <div class="shell">
+    <header class="topbar"><div class="course">ACI <span>/</span> Laborator interactiv</div><div class="top-actions"><button id="importBtn" class="text-button">Importă proiect</button><button id="presentationBtn" class="text-button" aria-pressed="false">Mod prezentare</button><button id="saveBtn" class="outline" disabled>Salvează proiect</button></div></header>
+    <main>
+      <section class="stage-heading"><div><div class="stage-meta"><span id="stageTag" class="eyebrow"></span><span id="stageCount"></span><span id="stageTime"></span></div><h1 id="stageTitle"></h1><p id="stageSubtitle"></p></div><button id="runAllBtn" class="outline" disabled>Rulează toți pașii ↗</button></section>
+      <div class="workspace">
+        <div class="visual-column">
+          <section class="canvas-card" aria-label="Rezultatul vizual al etapei">
+            <div class="canvas-header"><span id="visualTitle">IMAGINEA ORIGINALĂ</span><div id="viewButtons" class="view-buttons"></div><button id="downloadImageBtn" class="icon-button" title="Descarcă imaginea afișată" aria-label="Descarcă imaginea afișată" disabled>↓ PNG</button></div>
+            <div class="canvas-body">
+              <div id="canvasArea" class="canvas-area"><canvas id="canvas" tabindex="0" aria-label="Imaginea desenului. Dreptunghiul poate fi mutat și redimensionat. La repere poți selecta un punct și folosi săgețile pentru ajustare."></canvas><div id="emptyState" class="empty-state"><span class="empty-icon">↗</span><h2>Orice mișcare începe<br>cu un desen.</h2><p>Încarcă un personaj sau alege<br>unul dintre exemplele pregătite.</p><button id="emptyUploadBtn" class="primary">Încarcă un desen</button></div><div id="busyOverlay" class="busy-overlay" hidden><span class="spinner"></span><span id="busyText">Se calculează…</span></div></div>
+              <section id="histogramSection" class="histogram-section" hidden aria-label="Explicația pragului automat"><h2>Cum separăm nuanțele?</h2><p>Barele arată distribuția luminozității. Linia verde indică pragul ales automat.</p><div class="threshold-value">Prag automat <strong id="thresholdValue">—</strong><span>din 255</span></div><canvas id="histogram" aria-label="Distribuția intensităților; înălțime logaritmică, de la negru la alb"></canvas><div class="intensity-scale"><span>Negru · 0</span><span>Alb · 255</span></div><div class="histogram-key"><span><i></i>Urme selectate</span><span><i></i>Restul imaginii</span></div><small>Mai înalt = mai mulți pixeli. Scară verticală logaritmică pentru a vedea și nuanțele rare.</small></section>
+            </div>
+            <div id="editToolbar" class="edit-toolbar" hidden></div>
+            <div class="image-caption"><span id="imageCaption">PNG, JPEG, WebP · un singur personaj</span><span id="dimensions">—</span></div>
+          </section>
+          <div id="partLegend" class="part-legend" hidden aria-label="Legenda pieselor corpului"></div>
+          <section id="uploadSection" class="source-section"><div class="source-top"><h2>Alege punctul de plecare</h2><button id="uploadBtn" class="text-button">+ Desenul meu</button></div><div id="examples" class="examples"></div></section>
+          <section id="mocapSection" class="mocap-section" hidden><div class="source-top"><h2>Scheletul sursă · CMU</h2><a id="mocapSourceLink" target="_blank" rel="noreferrer">Vezi înregistrarea CMU ↗</a></div><p id="mocapInfo"></p><canvas id="mocapSourceCanvas" aria-label="Aceeași postură CMU în proiecție frontală și laterală"></canvas><p>Două proiecții ale aceleiași capturi 3D. Translația orizontală și întoarcerea în jurul axei verticale sunt eliminate pentru redare pe loc.</p></section>
+          <section id="metrics" class="metrics" aria-label="Valori calculate din desen"></section>
+          <section id="deformationSection" class="deformation-section" hidden><h2>Cât se modifică forma corpului?</h2><p>Variația maximă a lungimii muchiilor din interiorul corpului, în cadrul curent.</p><div class="deformation-values"><div><span>LBS clasic</span><strong id="baselineError">—</strong></div><div><span id="selectedModeLabel">Marionetă</span><strong id="selectedError">—</strong></div></div><p id="limbError"></p><small>0% indică păstrarea lungimilor verificate. Aceasta nu măsoară corectitudinea identificării anatomice. La îmbinări pot exista suprapuneri sau goluri.</small></section>
+          <section id="exports" class="export-section" hidden><h2>Păstrează rezultatele</h2><p>Poți reimporta proiectul JSON sau folosi GIF-ul în PowerPoint.</p><div><button id="bundleBtn" class="outline">↓ Toate rezultatele · ZIP</button><button id="rigBtn" class="outline">↓ Rig · JSON</button><button id="gifBtn" class="primary">↓ Animație · GIF</button></div></section>
+          <div id="warnings" class="warnings" aria-live="polite"></div>
+        </div>
+        <aside class="lesson-panel" aria-label="Explicațiile etapei"><div class="lesson-tabs" role="tablist" aria-label="Nivelul explicației"><button data-tab="concept" role="tab" aria-selected="true">Concept</button><button data-tab="technical" role="tab" aria-selected="false">Tehnic</button><button data-tab="oral" role="tab" aria-selected="false">Ce spun oral</button></div><div class="io-strip"><div><span>PRIMEȘTE</span><p id="stepInput"></p></div><div><span>PRODUCE</span><p id="stepOutput"></p></div></div><div id="lessonContent" class="lesson-content" role="tabpanel"></div></aside>
+      </div>
+      <footer class="stage-footer"><button id="prevBtn" class="text-button" disabled>← Pasul anterior</button><div id="progressText">Încarcă un desen pentru a începe</div><button id="nextBtn" class="primary" disabled>Localizează personajul →</button></footer>
+      <p class="keyboard-hint">← → navigare între etape · Spațiu: pauză la animație · F: mod prezentare · Esc: închide dialogul</p>
+    </main>
+  </div>
+  <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden><input id="projectInput" type="file" accept=".json,application/json" hidden>
+  <dialog id="aboutDialog"><button id="closeDialog" class="dialog-close" aria-label="Închide">×</button><div id="aboutContent"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body></html>

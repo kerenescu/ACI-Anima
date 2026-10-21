@@ -1,0 +1,22 @@
+# Workspace files that are not part of the published application.
+/.build/
+/output/
+/.chart-data-*/
+
+# Local tools and credentials.
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+node_modules/
+*.log
+*.part
+*.tmp
+/proiect-didactic/models/
+/proiect-didactic/training/
+/proiect-didactic/exports/
