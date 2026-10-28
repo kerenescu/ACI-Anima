@@ -225,7 +225,10 @@ function renderToolbar(){
     checkbox('Schelet',showSkeleton,v=>{showSkeleton=v;draw();});
     if(renderMode==='puppet')checkbox('Membre în față',limbsFront,v=>{limbsFront=v;draw();});
     if(renderMode==='puppet')checkbox('Îmbinări netede',smoothJoints,v=>{smoothJoints=v;draw();});
-    toolbarButton('↓ GIF',()=>exportGif()).title=isMocap(motion)?'Exportă 2 secunde începând de la momentul ales':'Exportă animația procedurală de 2 secunde';
+    toolbarButton('↓ PNG',()=>exportCurrentFrame()).title='Descarcă postura curentă pe fundal transparent, fără schelet';
+    toolbarButton('↓ PNG animat',()=>exportAnimation('apng')).title='Animație APNG transparentă · 2 secunde';
+    toolbarButton('↓ Cadre PNG · ZIP',()=>exportAnimation('frames')).title='40 de cadre PNG transparente, numerotate, fără GIF';
+    toolbarButton('↓ GIF',()=>exportGif()).title='Animație de 2 secunde pe fundal alb';
   }
 }
 function renderPartsLegend(){
@@ -334,14 +337,14 @@ function fitCamera(c,im,animation=false,exporting=false){
   const s=Math.min((width-50)/bw,(height-40)/bh)*(animation&&!isMocap(motion) ? .79 : 1);
   return {ratio,width,height,s,ox:(width-bw*s)/2-bounds.x0*s,oy:(height-bh*s)/2-bounds.y0*s};
 }
-function draw(time=animationTime,targetCanvas=canvas,exporting=false){
+function draw(time=animationTime,targetCanvas=canvas,exporting=false,transparent=false){
   const ctx=targetCanvas.getContext('2d');
   if(!state){ctx.clearRect(0,0,targetCanvas.width,targetCanvas.height);return;}
   const im=currentImage(exporting?'texture':view);if(!im)return;
   const animated=exporting||stage===8;
   const cam=fitCamera(targetCanvas,im,animated,exporting);if(!cam)return;if(!exporting)camera=cam;
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,targetCanvas.width,targetCanvas.height);
-  if(exporting){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,targetCanvas.width,targetCanvas.height);}
+  if(exporting&&!transparent){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,targetCanvas.width,targetCanvas.height);}
   ctx.setTransform(cam.ratio,0,0,cam.ratio,0,0);ctx.translate(cam.ox,cam.oy);ctx.scale(cam.s,cam.s);
   let joints=state.joints;
   if(!exporting&&stage===8&&isMocap(motion)){
@@ -492,16 +495,36 @@ function exportUrl(kind){if(state){operation(async()=>{
   await api('/api/settings',{id:state.id,settings:{render_mode:renderMode,motion,motion_projection:motionProjection,show_motion_source:showMotionSource,comparison,limbs_front:limbsFront,smooth_joints:smoothJoints}});
   const a=document.createElement('a');a.href=`/api/export/${state.id}/${kind}`;a.download='';a.click();
 },'Se pregătește proiectul pentru salvare…');}}
-async function exportGif(){
+async function exportCurrentFrame(){
   if(!state?.mesh)return;
   await operation(async()=>{
+    if(maskDirty||cropDirty)throw Error('Aplică sau anulează editarea înainte de export.');
+    const c=document.createElement('canvas');c.width=600;c.height=600;
+    draw(animationTime,c,true,true);
+    const blob=await new Promise((resolve,reject)=>c.toBlob(value=>value?resolve(value):reject(Error('Cadrul PNG nu a putut fi salvat.')),'image/png'));
+    downloadBlob(blob,`ACI-cadru-${renderMode}.png`);toast('Cadru PNG exportat · fundal transparent.');
+  },'Se pregătește cadrul PNG transparent…');
+}
+async function exportGif(){return exportAnimation('gif');}
+async function exportAnimation(kind){
+  if(!state?.mesh)return;
+  const options={gif:{label:'GIF-ul',extension:'gif',transparent:false},apng:{label:'PNG-ul animat',extension:'png',transparent:true},frames:{label:'cadrele PNG',extension:'zip',transparent:true}}[kind];
+  if(!options)return;
+  await operation(async()=>{
+    if(maskDirty||cropDirty)throw Error('Aplică sau anulează editarea înainte de export.');
+    if(kind!=='gif'){
+      const health=await(await fetch('/api/health')).json();
+      if(!health.animation_exports?.includes(kind))throw Error('Salvează proiectul JSON și repornește aplicația pentru noile exporturi PNG.');
+    }
     const c=document.createElement('canvas');c.width=600;c.height=600;const frames=[];
     const start=isMocap(motion)?animationTime:0;
-    for(let i=0;i<40;i++){draw(start+i/20,c,true);frames.push(c.toDataURL('image/png'));if(i%4===0){$('busyText').textContent=`Se pregătește GIF-ul: ${i+1}/40 cadre…`;await new Promise(r=>setTimeout(r,0));}}
-    $('busyText').textContent='Se codifică GIF-ul…';
-    const response=await fetch('/api/gif',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({frames})});
-    if(!response.ok){const e=await response.json();throw Error(e.error);}
-    downloadBlob(await response.blob(),`ACI-animatie-${renderMode}.gif`);toast(`GIF exportat · ${RENDER_MODES[renderMode]} · 2 secunde.`);
+    for(let i=0;i<40;i++){draw(start+i/20,c,true,options.transparent);frames.push(c.toDataURL('image/png'));if(i%4===0){$('busyText').textContent=`Se pregătesc ${options.label}: ${i+1}/40 cadre…`;await new Promise(r=>setTimeout(r,0));}}
+    $('busyText').textContent=`Se salvează ${options.label}…`;
+    const response=await fetch(`/api/${kind}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({frames})});
+    if(!response.ok){const e=await response.json().catch(()=>({}));throw Error(e.error||'Exportul nu a putut fi salvat.');}
+    const name=kind==='frames'?'cadre':'animatie';
+    downloadBlob(await response.blob(),`ACI-${name}-${renderMode}.${options.extension}`);
+    toast(kind==='frames'?'40 de cadre PNG transparente exportate în ZIP.':`${kind==='apng'?'PNG animat transparent':'GIF'} exportat · ${RENDER_MODES[renderMode]} · 2 secunde.`);
   },'Se pregătește animația…');
 }
 
@@ -526,12 +549,14 @@ async function fileData(file){if(file.size>12_000_000)throw Error('Imaginea treb
 $('fileInput').onchange=async()=>{const f=$('fileInput').files[0];if(!f)return;try{await load({image:await fileData(f),name:f.name});}catch(e){toast(e.message,true);}$('fileInput').value='';};
 const area=$('canvasArea');area.addEventListener('dragover',e=>e.preventDefault());area.addEventListener('drop',async e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(!f||busy)return;try{await load({image:await fileData(f),name:f.name});}catch(err){toast(err.message,true);}});
 $('saveBtn').onclick=()=>exportUrl('project');$('bundleBtn').onclick=()=>exportUrl('zip');$('rigBtn').onclick=()=>exportUrl('rig');$('gifBtn').onclick=()=>exportGif();
+$('framePngBtn').onclick=()=>exportCurrentFrame();$('apngBtn').onclick=()=>exportAnimation('apng');$('framesBtn').onclick=()=>exportAnimation('frames');
 $('importBtn').onclick=()=>$('projectInput').click();$('projectInput').onchange=async()=>{
   const f=$('projectInput').files[0];if(!f)return;
   await operation(async()=>{if(f.size>18_000_000)throw Error('Proiectul JSON este prea mare.');const p=JSON.parse(await f.text());await applyState(await api('/api/import',p));stage=Math.min(state.computed,8);resetView();updateUI();toast('Proiect reîncărcat cu masca și reperele salvate.');},'Se importă proiectul…');$('projectInput').value='';
 };
 $('downloadImageBtn').onclick=()=>{
-  if([1,6,7,8].includes(stage)){canvas.toBlob(blob=>downloadBlob(blob,`ACI-pas-${stage+1}.png`));}
+  if([8,9].includes(stage)&&state?.mesh){exportCurrentFrame();}
+  else if([1,6,7].includes(stage)){canvas.toBlob(blob=>downloadBlob(blob,`ACI-pas-${stage+1}.png`));}
   else{const im=currentImage(view);if(!im)return;const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);c.toBlob(blob=>downloadBlob(blob,`ACI-${view}.png`));}
 };
 window.addEventListener('keydown',async e=>{

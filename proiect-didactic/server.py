@@ -10,6 +10,7 @@ import time
 from urllib.parse import urlsplit
 import uuid
 import webbrowser
+from zipfile import ZipFile, ZIP_DEFLATED
 
 import numpy as np
 from PIL import Image
@@ -59,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         try:
             if path == '/api/health':
-                return self.send(200, {'ok': True, 'version': '3.8','model':model_status(),'mocap_clips':len(catalog())})
+                return self.send(200, {'ok': True, 'version': '3.8','model':model_status(),'mocap_clips':len(catalog()),'animation_exports':['gif','apng','frames']})
             if path == '/api/motions':return self.send(200,catalog())
             if path.startswith('/api/motion/'):
                 motion=path.rsplit('/',1)[-1]
@@ -120,17 +121,38 @@ class Handler(BaseHTTPRequestHandler):
                     s=DrawingSession(normalize(image),name,example);sid=add_session(s)
                 elif path=='/api/import':
                     s=restore_project(body);sid=add_session(s)
-                elif path=='/api/gif':
+                elif path in ('/api/gif','/api/apng','/api/frames'):
                     frames=body.get('frames',[])
-                    if not 2<=len(frames)<=48:raise ValueError('Exportul necesită între 2 și 48 de cadre.')
+                    minimum=1 if path=='/api/frames' else 2
+                    if not isinstance(frames,list) or not minimum<=len(frames)<=48:
+                        raise ValueError(f'Exportul necesită între {minimum} și 48 de cadre.')
                     decoded=[]
                     for frame in frames:
-                        im=decode_image(frame,1_500_000).convert('RGB')
-                        if max(im.size)>800:raise ValueError('Cadrele GIF sunt limitate la 800 px.')
+                        im=decode_image(frame,1_500_000).convert('RGBA')
+                        if max(im.size)>800:raise ValueError('Cadrele de animație sunt limitate la 800 px.')
                         decoded.append(im)
                     if len({im.size for im in decoded})!=1:raise ValueError('Cadrele trebuie să aibă aceeași dimensiune.')
                     out=BytesIO()
-                    decoded[0].save(out,format='GIF',save_all=True,append_images=decoded[1:],duration=50,
+                    if path=='/api/frames':
+                        with ZipFile(out,'w',compression=ZIP_DEFLATED) as archive:
+                            for i,im in enumerate(decoded,1):
+                                archive.writestr(f'cadre/cadru-{i:04d}.png',png_bytes(im))
+                            archive.writestr('animatie.json',json.dumps({
+                                'fps':20,'frame_count':len(decoded),'duration_seconds':len(decoded)/20,
+                                'width':decoded[0].width,'height':decoded[0].height,'color_mode':'RGBA',
+                                'frames':[f'cadre/cadru-{i:04d}.png' for i in range(1,len(decoded)+1)]
+                            },ensure_ascii=False,indent=2))
+                        return self.send(200,out.getvalue(),'application/zip','ACI-cadre-PNG.zip')
+                    if path=='/api/apng':
+                        decoded[0].save(out,format='PNG',save_all=True,append_images=decoded[1:],
+                                        duration=50,loop=0,disposal=0,blend=0)
+                        return self.send(200,out.getvalue(),'image/apng','ACI-animatie.png')
+                    # GIF uses an opaque white canvas; PNG exports retain the alpha channel.
+                    opaque=[]
+                    for im in decoded:
+                        background=Image.new('RGBA',im.size,'white')
+                        opaque.append(Image.alpha_composite(background,im).convert('RGB'))
+                    opaque[0].save(out,format='GIF',save_all=True,append_images=opaque[1:],duration=50,
                                     loop=0,optimize=False,disposal=2)
                     return self.send(200,out.getvalue(),'image/gif','ACI-animatie.gif')
                 else:
